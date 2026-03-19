@@ -900,8 +900,10 @@ def test_extra_deep(r):
         r.ok("19_search_all_across_many_collections")
 
         # 20. Angular deviation rubric edge values
-        from willow_store import angular_action, PI4, PI2, PI
+        from willow_store import angular_action, PI, Rubric
         import math
+        PI4 = math.pi / 4
+        PI2 = math.pi / 2
         assert angular_action(0.0) == "work_quiet"
         assert angular_action(PI4 - 0.001) == "work_quiet"
         assert angular_action(PI4 + 0.001) == "flag"

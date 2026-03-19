@@ -26,7 +26,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE))
 
-from willow_store import WillowStore, angular_action, net_trajectory
+from willow_store import WillowStore, angular_action, net_trajectory, Rubric, PI
 
 # Optional: Postgres bridge (shell works without it)
 try:
@@ -651,6 +651,41 @@ class SAFEShell(cmd.Cmd):
         """hardstops — Show hard stops (things the system will never do)"""
         for code, desc in HARD_STOPS.items():
             print(f"  {desc}")
+
+    def do_rubric(self, arg):
+        """rubric [verbose|default|quiet] or rubric <quiet> <flag> — View or set notification thresholds"""
+        import math
+        rubric = self.store.rubric
+
+        if not arg.strip():
+            print(f"  quiet below: {rubric.quiet_below:.4f} rad ({math.degrees(rubric.quiet_below):.1f}°)")
+            print(f"  flag  below: {rubric.flag_below:.4f} rad ({math.degrees(rubric.flag_below):.1f}°)")
+            print(f"  stop  above: {rubric.flag_below:.4f} rad ({math.degrees(rubric.flag_below):.1f}°)")
+            if rubric.hard_stops:
+                print(f"  hard stops:  {sorted(rubric.hard_stops)}")
+            print(f"\n  Presets: verbose (π/8, π/4), default (π/4, π/2), quiet (π/2, 3π/4)")
+            return
+
+        parts = arg.strip().split()
+        if parts[0] == "verbose":
+            self.store.rubric = Rubric.verbose()
+            print("  Rubric set to verbose (π/8 quiet, π/4 flag)")
+        elif parts[0] == "default":
+            self.store.rubric = Rubric.default()
+            print("  Rubric set to default (π/4 quiet, π/2 flag)")
+        elif parts[0] == "quiet":
+            self.store.rubric = Rubric.quiet()
+            print("  Rubric set to quiet (π/2 quiet, 3π/4 flag)")
+        elif len(parts) >= 2:
+            try:
+                q = float(parts[0])
+                f = float(parts[1])
+                self.store.rubric = Rubric(quiet_below=q, flag_below=f)
+                print(f"  Rubric set: quiet below {q:.4f}, flag below {f:.4f}")
+            except (ValueError, Exception) as e:
+                print(f"  Error: {e}")
+        else:
+            print("  Usage: rubric [verbose|default|quiet] or rubric <quiet_rad> <flag_rad>")
 
     def do_exit(self, arg):
         """exit — End session, revoke all permissions"""

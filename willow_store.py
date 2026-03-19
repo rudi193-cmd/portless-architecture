@@ -24,42 +24,109 @@ from datetime import datetime
 from pathlib import Path
 
 
-# ── Angular Deviation Rubric v2.0 ─────────────────────────────────────
+# ── Angular Deviation Rubric v3.0 ─────────────────────────────────────
+# User-configurable thresholds. The rubric IS the notification preference.
+# Lower thresholds = more verbose. Higher = quieter. Max = π.
 
-PI4 = math.pi / 4   # 45°
-PI2 = math.pi / 2   # 90°
-PI  = math.pi        # 180°
+PI  = math.pi        # 180° — absolute ceiling. Beyond this is a new direction.
 
 MAX_RECORD_BYTES = 100_000  # 100KB per record
 
 
-def angular_action(deviation: float) -> str:
+class Rubric:
+    """Angular deviation rubric with user-configurable thresholds.
+
+    quiet_below: deviations smaller than this are silent (default π/4 = 45°)
+    flag_below:  deviations between quiet and flag are logged (default π/2 = 90°)
+    Above flag_below → stop (requires human ratification).
+    hard_stops:  set of deviation magnitudes that ALWAYS stop, regardless of thresholds.
+    """
+
+    def __init__(self, quiet_below: float = math.pi / 4,
+                 flag_below: float = math.pi / 2,
+                 hard_stops: set[float] | None = None):
+        if quiet_below > flag_below:
+            raise ValueError("quiet_below must be <= flag_below")
+        if flag_below > PI:
+            raise ValueError(f"flag_below cannot exceed π ({PI:.4f})")
+        self.quiet_below = quiet_below
+        self.flag_below = flag_below
+        self.hard_stops = hard_stops or set()
+
+    def action(self, deviation: float) -> str:
+        """Determine action for a deviation magnitude."""
+        mag = abs(deviation)
+
+        # Hard stops override everything
+        for hs in self.hard_stops:
+            if mag >= hs:
+                return "stop"
+
+        if mag < self.quiet_below:
+            return "work_quiet"
+        elif mag < self.flag_below:
+            return "flag"
+        return "stop"
+
+    def to_dict(self) -> dict:
+        return {
+            "quiet_below": self.quiet_below,
+            "flag_below": self.flag_below,
+            "hard_stops": sorted(self.hard_stops),
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Rubric":
+        return cls(
+            quiet_below=d.get("quiet_below", math.pi / 4),
+            flag_below=d.get("flag_below", math.pi / 2),
+            hard_stops=set(d.get("hard_stops", [])),
+        )
+
+    @classmethod
+    def verbose(cls) -> "Rubric":
+        """User wants to see everything. quiet threshold at π/8."""
+        return cls(quiet_below=math.pi / 8, flag_below=math.pi / 4)
+
+    @classmethod
+    def default(cls) -> "Rubric":
+        """Standard thresholds. π/4 quiet, π/2 flag."""
+        return cls()
+
+    @classmethod
+    def quiet(cls) -> "Rubric":
+        """User wants minimal interruption. Only major changes surface."""
+        return cls(quiet_below=math.pi / 2, flag_below=3 * math.pi / 4)
+
+
+# Default rubric — used when no user config exists
+DEFAULT_RUBRIC = Rubric.default()
+
+
+def angular_action(deviation: float, rubric: Rubric = None) -> str:
     """Determine action based on signed angular deviation.
     work_quiet: minor change, proceed silently
     flag: significant change, log prominently
     stop: major change, requires ratification before proceeding
     """
-    mag = abs(deviation)
-    if mag < PI4:
-        return "work_quiet"
-    elif mag < PI2:
-        return "flag"
-    return "stop"
+    r = rubric or DEFAULT_RUBRIC
+    return r.action(deviation)
 
 
-def net_trajectory(deviations: list[float]) -> tuple[float, str]:
+def net_trajectory(deviations: list[float], rubric: Rubric = None) -> tuple[float, str]:
     """Weighted sum of recent deviations → (score, interpretation)."""
     if not deviations:
         return 0.0, "stable"
+    r = rubric or DEFAULT_RUBRIC
     total = 0.0
     for d in deviations:
         mag = abs(d)
-        w = 1.0 if mag >= PI2 else (0.5 if mag >= PI4 else 0.25)
+        w = 1.0 if mag >= r.flag_below else (0.5 if mag >= r.quiet_below else 0.25)
         total += d * w
     avg = total / len(deviations)
-    if avg > PI4:
+    if avg > r.quiet_below:
         return avg, "improving"
-    elif avg < -PI4:
+    elif avg < -r.quiet_below:
         return avg, "degrading"
     return avg, "stable"
 
@@ -89,8 +156,9 @@ def _sanitize_id(record_id: str) -> str:
 # ── WillowStore ────────────────────────────────────────────────────────
 
 class WillowStore:
-    def __init__(self, root: str):
+    def __init__(self, root: str, rubric: Rubric = None):
         self.root = Path(root).resolve()
+        self.rubric = rubric or DEFAULT_RUBRIC
         self._connections = {}
         self._lock = threading.Lock()
 
