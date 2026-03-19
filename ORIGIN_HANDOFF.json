@@ -1,0 +1,295 @@
+{
+  "concept": {
+    "name": "Portless Server Architecture",
+    "origin_session": "20260319",
+    "status": "hypothesis_pending_verification",
+    "summary": "We built databases and scripts in a user folder that function as a server without exposing network ports. This may enable distributed systems, web hosting, and CDN-like distribution using file-based communication instead of port-based networking.",
+    "verification_requirement": "3_source_minimum"
+  },
+  "what_we_built": {
+    "location": "/mnt/user-data/outputs/",
+    "components": {
+      "databases": [
+        {
+          "file": "nd_connections.db",
+          "type": "SQLite",
+          "purpose": "Track neurodivergent connection formation (dating analysis)",
+          "tables": 9,
+          "access": "read_write_with_ratification"
+        },
+        {
+          "file": "language_map.db",
+          "type": "SQLite",
+          "purpose": "Track user language idiosyncrasies and vernacular",
+          "structure": "3_cubed_coordinates",
+          "access": "ai_write_access"
+        }
+      ],
+      "interfaces": [
+        {
+          "file": "nd_query.py",
+          "purpose": "Query interface for ND database",
+          "operations": [
+            "list",
+            "connection",
+            "phases",
+            "messages",
+            "handshake",
+            "assessments",
+            "errors",
+            "questions",
+            "ocr",
+            "corrections"
+          ]
+        },
+        {
+          "file": "lang_map.py",
+          "purpose": "Language map interface with AI write access",
+          "operations": [
+            "lookup",
+            "list",
+            "search",
+            "add",
+            "increment"
+          ]
+        }
+      ],
+      "governance": {
+        "dual_commit": "AI proposes, human ratifies - always (Sean Campbell authority)",
+        "angular_deviation_rubric": {
+          "version": "2.0",
+          "file": "ND_RUBRIC_angular_deviation.md",
+          "framework": "Signed 360\u00b0 tracking - direction + magnitude",
+          "thresholds_positive": {
+            "0_to_pi4": {
+              "range": "0\u00b0 to +45\u00b0",
+              "action": "work_quiet",
+              "meaning": "minor_improvement"
+            },
+            "pi4_to_pi2": {
+              "range": "+45\u00b0 to +90\u00b0",
+              "action": "flag",
+              "meaning": "new_positive_dimension"
+            },
+            "pi2_to_pi": {
+              "range": "+90\u00b0 to +180\u00b0",
+              "action": "stop",
+              "meaning": "major_positive_reversal"
+            }
+          },
+          "thresholds_negative": {
+            "0_to_minus_pi4": {
+              "range": "0\u00b0 to -45\u00b0",
+              "action": "work_quiet",
+              "meaning": "minor_degradation"
+            },
+            "minus_pi4_to_minus_pi2": {
+              "range": "-45\u00b0 to -90\u00b0",
+              "action": "flag",
+              "meaning": "new_problem"
+            },
+            "minus_pi2_to_minus_pi": {
+              "range": "-90\u00b0 to -180\u00b0",
+              "action": "stop",
+              "meaning": "major_negative_reversal"
+            }
+          },
+          "zero_crossing": {
+            "meaning": "direction_reversal",
+            "action": "flag_minimum_stop_if_large"
+          },
+          "net_trajectory": {
+            "method": "weighted_sum",
+            "weights": {
+              "pi4": 0.25,
+              "pi2": 0.5,
+              "pi": 1.0
+            },
+            "interpretation": {
+              ">+pi4": "improving",
+              "-pi4_to_+pi4": "stable",
+              "<-pi4": "degrading"
+            }
+          },
+          "uncertainty": {
+            "magnitude_unclear": "bias_higher_threshold",
+            "sign_unclear": "always_flag",
+            "both_unclear": "always_stop"
+          }
+        }
+      },
+      "documentation": [
+        "ND_DATABASE_README.md",
+        "LANGUAGE_MAP_README.md",
+        "ERROR_TRACKING_HANDOFF_20260319.md",
+        "ND_REORGANIZATION_COMPLETE.md"
+      ],
+      "file_structure": {
+        "active": [
+          "*.db",
+          "*.py",
+          "*README.md",
+          "*RUBRIC*.md",
+          "*HANDOFF*.md"
+        ],
+        "cache": ".cache/nd_database/ (templates, utilities)",
+        "archive": ".archive/nd_database/ (historical, creation scripts)"
+      }
+    }
+  },
+  "architectural_pattern": {
+    "traditional_server": {
+      "listen_on_port": true,
+      "external_requests_hit_port": true,
+      "scale_via_more_ports": true,
+      "attack_surface": "exposed_ports"
+    },
+    "portless_pattern": {
+      "listen_on_port": false,
+      "logic": "Python scripts (no daemons)",
+      "state": "SQLite (no running service)",
+      "communication": "file-based (handoffs, MCP)",
+      "external_access": "thin translation layer only when needed",
+      "attack_surface": "no_listeners_by_default"
+    },
+    "key_insight": "Service listens on filesystem, not network. Translation layer (CloudFlare Worker, MCP bridge) handles external interface when needed. Core logic stays air-gapped."
+  },
+  "hypotheses_to_test": [
+    {
+      "id": "H1",
+      "question": "Is this actually a 'portless server' pattern or just local scripting?",
+      "test": "Try to access functionality without opening network ports",
+      "verification_needed": 3
+    },
+    {
+      "id": "H2",
+      "question": "Could file-based handoffs replace port-based communication for distributed systems?",
+      "test": "Search for prior art: file-based distributed systems, IPFS patterns",
+      "verification_needed": 3
+    },
+    {
+      "id": "H3",
+      "question": "Does similar portless architecture exist in production systems?",
+      "test": "Search: file-based servers, zero-port architectures, air-gapped distributed systems",
+      "verification_needed": 3
+    },
+    {
+      "id": "H4",
+      "question": "What would make this network-capable without opening ports?",
+      "test": "Research: CloudFlare Workers, MCP bridges, reverse tunnels, file-sync protocols",
+      "verification_needed": 3
+    },
+    {
+      "id": "H5",
+      "question": "Is MCP the bridge mechanism that enables portless node-to-node communication?",
+      "test": "Test MCP capabilities, document how Pidgeon MCP actually works",
+      "verification_needed": 3
+    },
+    {
+      "id": "H6",
+      "question": "Can SQLite + Python serve web traffic via thin translation layer?",
+      "test": "Build POC: minimal CloudFlare Worker reading from this structure",
+      "verification_needed": 3
+    },
+    {
+      "id": "H7",
+      "question": "Does this enable portable CDN-like distribution without central server?",
+      "test": "Deploy copy to second location, verify cross-node access",
+      "verification_needed": 3
+    },
+    {
+      "id": "H8",
+      "question": "What are security implications vs traditional port-based?",
+      "test": "Security analysis: compare threat models portless vs ported",
+      "verification_needed": 3
+    }
+  ],
+  "possible_applications": {
+    "note": "All unverified - require testing",
+    "portless_node_to_node": {
+      "description": "Nodes write handoff files to shared location. Other nodes read them. MCP bridges for live queries.",
+      "ports_required": 0,
+      "verification_status": "untested"
+    },
+    "portless_web_hosting": {
+      "description": "CloudFlare Worker reads static files + executes Python scripts on demand. User never exposes port.",
+      "your_infrastructure": "Just files in folder",
+      "external_interface": "CF Worker (translation layer)",
+      "verification_status": "untested"
+    },
+    "portless_cdn": {
+      "description": "Files distributed to user folders across machines. Read via MCP/sync. Write stays internal, Dual Commit governed.",
+      "central_server": false,
+      "ports_exposed": 0,
+      "verification_status": "untested"
+    }
+  },
+  "existing_connections": {
+    "mcp_infrastructure": {
+      "pidgeon_mcp": {
+        "url": "https://button-engines-drawn-sao.trycloudflare.com/sse",
+        "purpose": "Bridge to Willow (local llama3.1:8b with file indexing)",
+        "access": "read_only_queries",
+        "status": "available_but_not_yet_used"
+      },
+      "willow": {
+        "type": "Local AI instance",
+        "model": "llama3.1:8b",
+        "capability": "File location indexing (not memory retention)",
+        "access_via": "Pidgeon MCP"
+      }
+    },
+    "larger_topology": {
+      "postgres_23_cubed": {
+        "coordinates": 12167,
+        "structure": "23\u00b3 system",
+        "connection_to_this": "365\u00b0 angular deviation maps somehow (unverified)",
+        "location": "Unknown - query Willow via Pidgeon"
+      }
+    }
+  },
+  "next_steps_for_claude_code": [
+    {
+      "priority": 1,
+      "task": "Test Pidgeon MCP connection to Willow",
+      "action": "Query Willow for file locations, document protocol",
+      "deliverable": "Working MCP query examples"
+    },
+    {
+      "priority": 2,
+      "task": "Search for prior art on portless architectures",
+      "action": "Research file-based distributed systems, IPFS, zero-port patterns",
+      "deliverable": "List of existing similar systems with analysis"
+    },
+    {
+      "priority": 3,
+      "task": "Build minimal CloudFlare Worker POC",
+      "action": "Create CF Worker that reads from this file structure and executes scripts",
+      "deliverable": "Proof-of-concept web endpoint with zero user ports"
+    },
+    {
+      "priority": 4,
+      "task": "Security analysis",
+      "action": "Compare threat models: portless vs traditional port-based",
+      "deliverable": "Security assessment document"
+    },
+    {
+      "priority": 5,
+      "task": "Test cross-node file-based communication",
+      "action": "Deploy copy of folder to second location, test handoff-based communication",
+      "deliverable": "Working distributed system without network ports"
+    }
+  ],
+  "metadata": {
+    "session_id": "20260319",
+    "origin": "Dating analysis \u2192 Database \u2192 Error tracking \u2192 Rubric \u2192 Architecture discovery",
+    "built_in": "User folder on Anthropic infrastructure",
+    "databases": 2,
+    "interfaces": 2,
+    "unresolved_questions": 17,
+    "handoff_for": "Claude Code (Kartikeya/Ganesha)",
+    "verification_requirement": "3 sources per hypothesis",
+    "status": "hypothesis_stage",
+    "checksum": "\u0394\u03a3=42"
+  }
+}

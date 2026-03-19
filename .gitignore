@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.db
+store.db
+merged_test/
+folderdb/
+portless/
+test_seed/
+test_agent_*/
+test_adversarial/
+.cache/
+.archive/
