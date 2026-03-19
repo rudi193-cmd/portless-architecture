@@ -18,6 +18,7 @@ import math
 import os
 import re
 import sqlite3
+import threading
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -91,6 +92,7 @@ class WillowStore:
     def __init__(self, root: str):
         self.root = Path(root).resolve()
         self._connections = {}
+        self._lock = threading.Lock()
 
     def _validate_path(self, collection: str) -> Path:
         """Resolve collection path. Reject if outside root."""
@@ -162,23 +164,24 @@ class WillowStore:
         if len(data) > MAX_RECORD_BYTES:
             raise ValueError(f"Record too large: {len(data)} bytes (max {MAX_RECORD_BYTES})")
 
-        conn = self._conn(collection)
-        existing = conn.execute(
-            "SELECT id FROM records WHERE id = ? AND deleted = 0", (rid,)
-        ).fetchone()
-        if existing:
-            raise ValueError(f"Record '{rid}' exists. Use update() to modify.")
+        with self._lock:
+            conn = self._conn(collection)
+            existing = conn.execute(
+                "SELECT id FROM records WHERE id = ? AND deleted = 0", (rid,)
+            ).fetchone()
+            if existing:
+                raise ValueError(f"Record '{rid}' exists. Use update() to modify.")
 
-        now = datetime.now().isoformat()
-        conn.execute(
-            "INSERT INTO records (id, data, created_at, updated_at, deviation, action) VALUES (?, ?, ?, ?, ?, ?)",
-            (rid, data, now, now, deviation, action)
-        )
-        conn.execute(
-            "INSERT INTO audit_log (record_id, operation, deviation, action, timestamp) VALUES (?, 'create', ?, ?, ?)",
-            (rid, deviation, action, now)
-        )
-        conn.commit()
+            now = datetime.now().isoformat()
+            conn.execute(
+                "INSERT INTO records (id, data, created_at, updated_at, deviation, action) VALUES (?, ?, ?, ?, ?, ?)",
+                (rid, data, now, now, deviation, action)
+            )
+            conn.execute(
+                "INSERT INTO audit_log (record_id, operation, deviation, action, timestamp) VALUES (?, 'create', ?, ?, ?)",
+                (rid, deviation, action, now)
+            )
+            conn.commit()
         return rid, action
 
     def update(self, collection: str, record_id: str, record: dict,
@@ -191,20 +194,21 @@ class WillowStore:
         if len(data) > MAX_RECORD_BYTES:
             raise ValueError(f"Record too large: {len(data)} bytes (max {MAX_RECORD_BYTES})")
 
-        conn = self._conn(collection)
-        now = datetime.now().isoformat()
-        result = conn.execute(
-            "UPDATE records SET data = ?, updated_at = ?, deviation = ?, action = ? WHERE id = ? AND deleted = 0",
-            (data, now, deviation, action, rid)
-        )
-        if result.rowcount == 0:
-            raise ValueError(f"Record '{rid}' not found or deleted.")
+        with self._lock:
+            conn = self._conn(collection)
+            now = datetime.now().isoformat()
+            result = conn.execute(
+                "UPDATE records SET data = ?, updated_at = ?, deviation = ?, action = ? WHERE id = ? AND deleted = 0",
+                (data, now, deviation, action, rid)
+            )
+            if result.rowcount == 0:
+                raise ValueError(f"Record '{rid}' not found or deleted.")
 
-        conn.execute(
-            "INSERT INTO audit_log (record_id, operation, deviation, action, timestamp) VALUES (?, 'update', ?, ?, ?)",
-            (rid, deviation, action, now)
-        )
-        conn.commit()
+            conn.execute(
+                "INSERT INTO audit_log (record_id, operation, deviation, action, timestamp) VALUES (?, 'update', ?, ?, ?)",
+                (rid, deviation, action, now)
+            )
+            conn.commit()
         return rid, action
 
     # ── Read ───────────────────────────────────────────────────────────
@@ -283,20 +287,21 @@ class WillowStore:
 
     def delete(self, collection: str, record_id: str) -> bool:
         """Soft delete with audit trail. Invisible to search/get/all."""
-        conn = self._conn(collection)
-        rid = _sanitize_id(record_id)
-        now = datetime.now().isoformat()
-        result = conn.execute(
-            "UPDATE records SET deleted = 1, updated_at = ? WHERE id = ? AND deleted = 0",
-            (now, rid)
-        )
-        if result.rowcount == 0:
-            return False
-        conn.execute(
-            "INSERT INTO audit_log (record_id, operation, timestamp) VALUES (?, 'delete', ?)",
-            (rid, now)
-        )
-        conn.commit()
+        with self._lock:
+            conn = self._conn(collection)
+            rid = _sanitize_id(record_id)
+            now = datetime.now().isoformat()
+            result = conn.execute(
+                "UPDATE records SET deleted = 1, updated_at = ? WHERE id = ? AND deleted = 0",
+                (now, rid)
+            )
+            if result.rowcount == 0:
+                return False
+            conn.execute(
+                "INSERT INTO audit_log (record_id, operation, timestamp) VALUES (?, 'delete', ?)",
+                (rid, now)
+            )
+            conn.commit()
         return True
 
     # ── Edges ──────────────────────────────────────────────────────────

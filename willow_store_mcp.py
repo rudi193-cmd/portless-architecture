@@ -1,7 +1,13 @@
 """
-willow_store_mcp.py — MCP bridge for WillowStore (portless)
+willow_store_mcp.py — Unified MCP bridge (portless)
+
 No ports. No server. stdin/stdout protocol only.
-This IS the portless server — MCP talks to folders.
+Bridges BOTH local WillowStore (SQLite) AND Willow Postgres.
+
+Local tools: store_put, store_get, store_search, store_search_all, etc.
+Postgres tools: willow_knowledge_search, willow_knowledge_ingest, willow_chat,
+                willow_agents, willow_status, willow_journal, willow_query,
+                willow_system_status
 """
 
 import asyncio
@@ -21,6 +27,13 @@ except ImportError:
 # WillowStore
 sys.path.insert(0, str(Path(__file__).parent))
 from willow_store import WillowStore
+
+# Optional: Postgres bridge
+try:
+    from pg_bridge import try_connect
+    pg = try_connect()
+except Exception:
+    pg = None
 
 # Default store location — override with WILLOW_STORE_ROOT env var
 import os
@@ -161,6 +174,125 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["collection"],
             },
         ),
+        # ── Postgres-backed Willow tools ──────────────────────────────
+        types.Tool(
+            name="willow_knowledge_search",
+            description="Search Willow's Postgres knowledge graph (atoms, entities, ganesha). Returns pointers, not content.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search query"},
+                    "limit": {"type": "integer", "default": 20},
+                },
+                "required": ["query"],
+            },
+        ),
+        types.Tool(
+            name="willow_knowledge_ingest",
+            description="Add an atom to the Willow knowledge graph.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string"},
+                    "summary": {"type": "string"},
+                    "source_type": {"type": "string", "default": "mcp"},
+                    "source_id": {"type": "string"},
+                    "category": {"type": "string", "default": "general"},
+                    "domain": {"type": "string"},
+                },
+                "required": ["title", "summary"],
+            },
+        ),
+        types.Tool(
+            name="willow_query",
+            description="General search across knowledge graph. Alias for willow_knowledge_search.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                    "limit": {"type": "integer", "default": 20},
+                },
+                "required": ["query"],
+            },
+        ),
+        types.Tool(
+            name="willow_agents",
+            description="List registered Willow agents and their trust levels.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
+            name="willow_status",
+            description="Willow system health: local store + Postgres + Ollama.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
+            name="willow_system_status",
+            description="Full system status including store stats, Postgres stats, and connectivity.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
+            name="willow_chat",
+            description="Chat with a Willow agent (routes to Ollama local, then fleet).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "agent": {"type": "string", "default": "willow", "description": "Agent name: willow, kart, shiva, gerald, etc."},
+                    "message": {"type": "string"},
+                },
+                "required": ["message"],
+            },
+        ),
+        types.Tool(
+            name="willow_journal",
+            description="Write a journal entry to the knowledge graph.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "entry": {"type": "string", "description": "Journal entry text"},
+                    "domain": {"type": "string", "default": "meta"},
+                },
+                "required": ["entry"],
+            },
+        ),
+        types.Tool(
+            name="willow_governance",
+            description="Query governance state: pending proposals, recent ratifications.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        types.Tool(
+            name="willow_persona",
+            description="Get agent persona/profile information.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "agent": {"type": "string", "default": "willow"},
+                },
+                "required": ["agent"],
+            },
+        ),
+        types.Tool(
+            name="willow_speak",
+            description="Text-to-speech via Willow TTS router.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "voice": {"type": "string", "default": "default"},
+                },
+                "required": ["text"],
+            },
+        ),
+        types.Tool(
+            name="willow_route",
+            description="Route a message to the appropriate agent based on content.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string"},
+                },
+                "required": ["message"],
+            },
+        ),
     ]
 
 
@@ -224,6 +356,97 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 limit=arguments.get("limit", 20),
             )
 
+        # ── Postgres-backed tools ─────────────────────────────────────
+        elif name in ("willow_knowledge_search", "willow_query"):
+            if not pg:
+                result = {"error": "not_available", "reason": "Postgres not connected"}
+            else:
+                query = arguments["query"]
+                limit = arguments.get("limit", 20)
+                knowledge = pg.search_knowledge(query, limit)
+                ganesha = pg.search_ganesha(query, min(limit, 5))
+                entities = pg.search_entities(query, min(limit, 5))
+                result = {
+                    "knowledge": knowledge,
+                    "ganesha_atoms": ganesha,
+                    "entities": entities,
+                    "total": len(knowledge) + len(ganesha) + len(entities),
+                }
+
+        elif name == "willow_knowledge_ingest":
+            if not pg:
+                result = {"error": "not_available", "reason": "Postgres not connected"}
+            else:
+                atom_id = pg.ingest_atom(
+                    title=arguments["title"],
+                    summary=arguments["summary"],
+                    source_type=arguments.get("source_type", "mcp"),
+                    source_id=arguments.get("source_id", ""),
+                    category=arguments.get("category", "general"),
+                    domain=arguments.get("domain"),
+                )
+                result = {"id": atom_id, "status": "ingested" if atom_id else "failed"}
+
+        elif name == "willow_agents":
+            agents = [
+                {"name": "willow", "trust": "OPERATOR", "role": "Primary interface"},
+                {"name": "kart", "trust": "ENGINEER", "role": "Infrastructure, multi-step tasks"},
+                {"name": "ada", "trust": "OPERATOR", "role": "Systems admin, continuity"},
+                {"name": "shiva", "trust": "ENGINEER", "role": "Bridge Ring, SAFE face"},
+                {"name": "ganesha", "trust": "ENGINEER", "role": "Diagnostic, obstacle removal"},
+                {"name": "gerald", "trust": "WORKER", "role": "Acting Dean, philosophical"},
+                {"name": "riggs", "trust": "WORKER", "role": "Applied reality engineering"},
+                {"name": "steve", "trust": "OPERATOR", "role": "Prime node, coordinator"},
+                {"name": "pigeon", "trust": "WORKER", "role": "Carrier, connector"},
+                {"name": "hanz", "trust": "WORKER", "role": "Code, holds Copenhagen"},
+                {"name": "ofshield", "trust": "WORKER", "role": "Keeper of the Gate"},
+                {"name": "jeles", "trust": "WORKER", "role": "Librarian, special collections"},
+                {"name": "binder", "trust": "WORKER", "role": "Records, filing"},
+            ]
+            result = {"agents": agents, "count": len(agents)}
+
+        elif name in ("willow_status", "willow_system_status"):
+            local_stats = store.stats()
+            local_count = sum(s["count"] for s in local_stats.values()) if local_stats else 0
+            pg_stats = pg.stats() if pg else {}
+            result = {
+                "local_store": {"collections": len(local_stats), "records": local_count},
+                "postgres": pg_stats if pg_stats else "not_connected",
+                "ollama": _check_ollama(),
+                "mode": "portless",
+            }
+
+        elif name == "willow_chat":
+            agent = arguments.get("agent", "willow")
+            message = arguments["message"]
+            response = _chat_ollama(agent, message)
+            if not response:
+                response = f"[{agent}] Inference unavailable. Ollama not running."
+            result = {"agent": agent, "response": response}
+
+        elif name == "willow_journal":
+            entry = arguments["entry"]
+            domain = arguments.get("domain", "meta")
+            if pg:
+                atom_id = pg.ingest_ganesha_atom(entry, domain=domain, depth=1)
+                result = {"status": "logged", "atom_id": atom_id}
+            else:
+                rid, action = store.put("journal/entries", {"text": entry})
+                result = {"status": "logged_local", "id": rid}
+
+        elif name == "willow_governance":
+            result = {"status": "portless_mode", "note": "Governance runs via Dual Commit proposals in governance/commits/"}
+
+        elif name == "willow_persona":
+            agent = arguments.get("agent", "willow")
+            result = {"agent": agent, "note": f"Persona profiles at agents/{agent}/AGENT_PROFILE.md"}
+
+        elif name == "willow_speak":
+            result = {"status": "not_available", "reason": "TTS not wired in portless mode"}
+
+        elif name == "willow_route":
+            result = {"routed_to": "willow", "note": "Message routing defaults to willow in portless mode"}
+
         else:
             result = {"error": f"Unknown tool: {name}"}
 
@@ -231,6 +454,40 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
     except Exception as e:
         return [types.TextContent(type="text", text=json.dumps({"error": str(e)}))]
+
+
+def _check_ollama() -> dict:
+    """Check if Ollama is running."""
+    try:
+        import urllib.request
+        url = os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/tags"
+        with urllib.request.urlopen(url, timeout=2) as resp:
+            data = json.loads(resp.read())
+            models = [m["name"] for m in data.get("models", [])]
+            return {"running": True, "models": models}
+    except Exception:
+        return {"running": False}
+
+
+def _chat_ollama(agent: str, message: str) -> str | None:
+    """Try local Ollama chat."""
+    try:
+        import urllib.request
+        data = json.dumps({
+            "model": os.environ.get("WILLOW_OLLAMA_MODEL", "llama3.2"),
+            "messages": [
+                {"role": "system", "content": f"You are {agent}, a Willow agent. Be concise."},
+                {"role": "user", "content": message},
+            ],
+            "stream": False,
+        }).encode()
+        url = os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/chat"
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read())
+            return result.get("message", {}).get("content", "")
+    except Exception:
+        return None
 
 
 async def main():
