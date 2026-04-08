@@ -7,7 +7,7 @@
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-WILLOW_DIR="/mnt/c/Users/Sean/Documents/GitHub/Willow"
+WILLOW_DIR="${WILLOW_DIR:-/mnt/c/Users/Sean/Documents/GitHub/Willow}"
 STORE_ROOT="${WILLOW_STORE_ROOT:-$HOME/.willow/store}"
 
 echo

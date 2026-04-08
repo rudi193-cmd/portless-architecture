@@ -28,6 +28,8 @@ from pathlib import Path
 # User-configurable thresholds. The rubric IS the notification preference.
 # Lower thresholds = more verbose. Higher = quieter. Max = π.
 
+PI4 = math.pi / 4    # 45°
+PI2 = math.pi / 2    # 90°
 PI  = math.pi        # 180° — absolute ceiling. Beyond this is a new direction.
 
 MAX_RECORD_BYTES = 100_000  # 100KB per record

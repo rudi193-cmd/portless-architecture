@@ -18,7 +18,7 @@ This module wraps core/compact.py for portless use. It adds:
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Connection params
 _PG_PARAMS = {
@@ -83,7 +83,6 @@ def register(content: str, category: str = "pattern", label: str = None,
         cur = conn.cursor()
         cid = ctx_id or _gen_id()
         now = datetime.now()
-        from datetime import timedelta
         expires = (now + timedelta(hours=ttl_hours)) if ttl_hours > 0 else None
 
         cur.execute("""
