@@ -252,17 +252,18 @@ class PortlessDB:
 
     def delete(self, collection: str, record_id: str) -> bool:
         """Soft delete with audit trail."""
+        rid = self._sanitize(record_id)
         conn = self._conn(collection)
         now = datetime.now().isoformat()
         result = conn.execute(
             "UPDATE records SET deleted = 1, updated_at = ? WHERE id = ? AND deleted = 0",
-            (now, self._sanitize(record_id))
+            (now, rid)
         )
         if result.rowcount == 0:
             return False
         conn.execute(
             "INSERT INTO audit_log (record_id, operation, timestamp) VALUES (?, 'delete', ?)",
-            (record_id, now)
+            (rid, now)
         )
         conn.commit()
         return True

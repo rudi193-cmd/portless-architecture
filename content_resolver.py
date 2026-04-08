@@ -14,7 +14,7 @@ from pathlib import Path
 
 # Known base paths for content resolution
 WILLOW_REPO = os.environ.get(
-    "WILLOW_REPO", "/mnt/c/Users/Sean/Documents/GitHub/Willow"
+    "WILLOW_REPO", "/home/sean-campbell/github/Willow"
 )
 ARTIFACTS_BASE = os.path.join(WILLOW_REPO, "artifacts")
 DOCS_BASE = os.path.join(WILLOW_REPO, "docs")
@@ -146,9 +146,9 @@ def _repo_base(repo_name: str) -> str | None:
     """Map repo name to local path."""
     repos = {
         "Willow": WILLOW_REPO,
-        "SAFE": os.environ.get("SAFE_REPO", "/mnt/c/Users/Sean/Documents/GitHub/SAFE"),
-        "die-namic-system": os.environ.get("DNS_REPO", "/mnt/c/Users/Sean/Documents/GitHub/die-namic-system"),
-        "portless-architecture": os.environ.get("PORTLESS_REPO", "/mnt/c/Users/Sean/Documents/GitHub/portless-architecture"),
+        "SAFE": os.environ.get("SAFE_REPO", "/home/sean-campbell/github/SAFE"),
+        "die-namic-system": os.environ.get("DNS_REPO", "/home/sean-campbell/github/die-namic-system"),
+        "portless-architecture": os.environ.get("PORTLESS_REPO", "/home/sean-campbell/github/portless-architecture"),
     }
     return repos.get(repo_name)
 

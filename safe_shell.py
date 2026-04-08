@@ -546,7 +546,7 @@ class SAFEShell(cmd.Cmd):
             import importlib.util
             spec = importlib.util.spec_from_file_location(
                 "llm_router",
-                "/mnt/c/Users/Sean/Documents/GitHub/Willow/core/llm_router.py"
+                "/home/sean-campbell/willow-1.5/core/llm_router.py"
             )
             if not spec:
                 return None
