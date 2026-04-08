@@ -2,9 +2,9 @@
   "mcpServers": {
     "willow": {
       "command": "python3",
-      "args": ["/mnt/c/Users/Sean/Documents/GitHub/willow-1.5/core/willow_store_mcp.py"],
+      "args": ["../Willow-1.5/core/willow_store_mcp.py"],
       "env": {
-        "WILLOW_STORE_ROOT": "/home/sean/.willow/store"
+        "WILLOW_STORE_ROOT": "${HOME}/.willow/store"
       }
     }
   }

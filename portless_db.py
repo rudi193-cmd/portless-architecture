@@ -43,7 +43,6 @@ def net_trajectory(deviations: list[float]) -> tuple[float, str]:
     """Weighted sum of recent deviations. Returns (score, interpretation)."""
     if not deviations:
         return 0.0, "stable"
-    weights = {PI4: 0.25, PI2: 0.5, PI: 1.0}
     total = 0.0
     for d in deviations:
         mag = abs(d)
